@@ -1,0 +1,201 @@
+@Composable
+fun AnimatedBottomBar(
+    items: List<BottomNavItem>,
+    currentItem: Int = 0,
+    onItemChanged: (BottomNavItem, Int) -> Unit
+) {
+    val configuration = LocalConfiguration.current
+
+    val itemWidthDp = configuration.screenWidthDp.dp / items.size
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        val itemWidth = with(LocalDensity.current) { itemWidthDp.toPx() }
+        val bezierX = animateFloatAsState((currentItem * itemWidth) + itemWidth / 2, label = "bezierX" )
+
+        BezierView(
+            modifier = Modifier
+                .height(74.dp)
+                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .onGloballyPositioned {
+                }, bezierX = bezierX.value, itemWidth = itemWidth
+        )
+
+        Row(modifier = Modifier, verticalAlignment = Alignment.CenterVertically) {
+            items.forEachIndexed { index, item ->
+                val selected = currentItem == index
+                val color =
+                    if (selected) AppTheme.colors.text.primary else AppTheme.colors.text.secondary
+                val animatedPadding by animateDpAsState(
+                    if (selected) {
+                        itemWidthDp * 0.33f
+                    } else {
+                        itemWidthDp * 0.15f
+                    },
+                    label = "padding",
+                    animationSpec = tween(100)
+                )
+
+                val animatedShadow by animateDpAsState(
+                    if (selected) {
+                        1.dp
+                    } else {
+                        0.dp
+                    },
+                    label = "shadow"
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            onItemChanged(item, index)
+                        },
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .padding(bottom = animatedPadding)
+                            .size(itemWidthDp * 0.6f)
+                            .shadow(animatedShadow, shape = CircleShape)
+                            .background(Color.White, shape = CircleShape)
+                            .align(Alignment.BottomCenter),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = if (selected) item.iconOn else item.iconOff),
+                            contentDescription = "icon"
+                        )
+                    }
+                    Text(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp),
+                        text = stringResource(id = item.label),
+                        style = AppTheme.typography.small.copy(color = color, fontSize = 9.sp)
+                    )
+                }
+
+            }
+        }
+    }
+}
+
+@Composable
+fun BezierView(
+    modifier: Modifier,
+    bezierX: Float,
+    bezierY: Float = 1f,
+    backgroundColor: Color = Color.White,
+    itemWidth: Float,
+    bezierHeight: Float = (itemWidth / 2f)
+) {
+
+    var size by remember { mutableStateOf(Size.Zero) }
+
+    Box(modifier = modifier
+        .onGloballyPositioned { coordinates ->
+            size = coordinates.size.toSize()
+        }) {
+
+        val outerHeight =  with(LocalDensity.current) { 16.dp.toPx() }
+        val path = bezierPath(size, outerHeight, bezierX, bezierHeight, bezierY, itemWidth)
+
+        Canvas(
+            modifier = Modifier
+                .width(size.width.dp)
+                .height(size.height.dp)
+                .shadow(20.dp, shape = BezierShape(path = path))
+        ) {
+
+            drawPath(path = path, color = backgroundColor, style = Fill)
+        }
+    }
+}
+
+
+fun bezierPath(size: Size, outerHeight: Float, bezierX: Float, bezierHeight: Float, bezierY: Float, itemWidth: Float): Path {
+    val offsetY = (outerHeight + bezierHeight)
+    val offsetX = itemWidth 
+
+    val p3 = Offset(bezierX, offsetY)
+
+    val p1 = Offset(bezierX - offsetX / 2, outerHeight)
+    val p2 = Offset(bezierX - offsetX * 0.3684f, offsetY - offsetY * 0.5294f)
+    val p4 = Offset(bezierX + offsetX * 0.3684f,offsetY - offsetY * 0.5294f)
+    val p5 = Offset(bezierX + offsetX / 2, outerHeight)
+
+    val p11 = Offset(bezierX - offsetX * 0.4273f, outerHeight)
+    val p12 = Offset(bezierX - offsetX * 0.3684f,offsetY - offsetY * 0.6513f)
+
+    val p21 = Offset(bezierX - offsetX * 0.3684f,offsetY - offsetY * 0.2458f)
+    val p22 = Offset(bezierX - offsetX * 0.2047f, offsetY)
+
+    val p31 = Offset(bezierX + offsetX * 0.2034f, offsetY)
+    val p32 = Offset(bezierX + offsetX * 0.3684f,offsetY - offsetY * 0.2458f)
+
+    val p41 = Offset(bezierX + offsetX * 0.3684f,offsetY - offsetY * 0.6572f)
+    val p42 = Offset(bezierX + offsetX * 0.4273f, outerHeight)
+
+    val path = Path()
+
+    path.apply {
+
+        moveTo(0f, outerHeight)
+        lineTo(p1.x, p1.y)
+
+        cubicTo(
+            p11.x, p11.y,
+            p12.x, p12.y,
+            p2.x, p2.y
+        )
+
+        cubicTo(
+            p21.x, p21.y,
+            p22.x, p22.y,
+            p3.x, p3.y
+        )
+
+        cubicTo(
+            p31.x, p31.y,
+            p32.x, p32.y,
+            p4.x, p4.y
+        )
+
+        cubicTo(
+            p41.x, p41.y,
+            p42.x, p42.y,
+            p5.x, p5.y
+        )
+
+        lineTo(size.width, outerHeight)
+        lineTo(size.width, size.height)
+        lineTo(0f, size.height)
+        close()
+    }
+    return path
+}
+
+class BezierShape(val path: Path): Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ) = Outline.Generic(path = path)
+}
+
+@Preview(showBackground = false)
+@Composable
+fun BezierViewPrewiew() {
+    var size by remember { mutableStateOf(Size.Zero) }
+    BezierView(modifier = Modifier
+        .height(60.dp)
+        .fillMaxWidth()
+        .onGloballyPositioned {
+            size = it.size.toSize()
+        }, bezierX = size.width / 2f, itemWidth = size.width / 5, bezierY = 1f)
+}
